@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.7.34221.43
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DevopsPermissionsADO", "DevopsPermissionsADO.csproj", "{5794AF09-B20C-4FE7-88EE-E050D42058FE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5794AF09-B20C-4FE7-88EE-E050D42058FE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5794AF09-B20C-4FE7-88EE-E050D42058FE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5794AF09-B20C-4FE7-88EE-E050D42058FE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5794AF09-B20C-4FE7-88EE-E050D42058FE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {8BCD8C50-B476-4F12-B899-90727BAEA477}
+	EndGlobalSection
+EndGlobal
