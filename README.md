@@ -6,9 +6,10 @@ The goal of this project is to provide a way to list permissions in Azure DevOps
 
 ## Getting Started
 
-donload the project and open it in Visual Studio. You can also use Visual Studio Code.
+Donwload the project and open it in Visual Studio. You can also use Visual Studio Code.
 
 ### Prerequisites
+
 Personal Access Token (PAT) with the following permissions:
 - Read
 
