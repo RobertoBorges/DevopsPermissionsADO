@@ -1,0 +1,11 @@
+{
+    "configurations": [
+        {
+            "name": "C#: DevopsPermissionsADO",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}\\DevopsPermissionsADO.csproj",
+            "launchConfigurationId": "TargetFramework=;DevopsPermissionsADO"
+        }
+    ]
+}

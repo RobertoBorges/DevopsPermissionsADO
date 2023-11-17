@@ -6,17 +6,19 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
-using DevopsPermissionsADO;
 using Microsoft.VisualStudio.Services.Common;
+using DevopsPermissionsADO.AdoObjects;
 
 class Program
 {
     static async Task Main()
     {
-        string organization = "MngEnvMCAP008355demo"; // Replace with your organization name
-        string personalAccessToken = "pwpvwx5e4jt4hqrgvctnus2sdb6y7zfkvxdg5gynjpubbrnicidq"; // Replace with your PAT
-        string userToQuery = "admin@MngEnvMCAP008355.onmicrosoft.com"; // The user you want to query
-        string adoApiVersion = "7.1-preview.1";
+        string organization = ""; // Replace with your organization name
+        string personalAccessToken = ""; // Replace with your PAT
+        string userToQuery = ""; // The user email you want to query
+        string queryNamespace = ""; //"ReleaseManagement";
+        string projectToQuery = ""; //"eShop-Containers";
+        string adoApiVersion = "7.1-preview.1";        
 
         // Create an instance of HttpClient
         using (var client = new HttpClient())
@@ -41,6 +43,12 @@ class Program
                         return;
                     }
                     userJson = JsonConvert.DeserializeObject<AdoUserResponse>(await userResponse.Content.ReadAsStringAsync());
+
+                    if (userJson.Count == 0)
+                    {
+                        Console.WriteLine("User not found");
+                        return;
+                    }
                 }
 
                 // Set the authorization header using the Personal Access Token (PAT)
@@ -52,12 +60,17 @@ class Program
                 // Get a list of projects
                 var projectsResponse = await client.GetAsync($"_apis/projects/?api-version={adoApiVersion}");
                 projectsResponse.EnsureSuccessStatusCode();
-                var projectsJson = JsonConvert.DeserializeObject<ProjectListResponse>(await projectsResponse.Content.ReadAsStringAsync());
+                var projectsJson = JsonConvert.DeserializeObject<ProjectResponse>(await projectsResponse.Content.ReadAsStringAsync());
 
                 Console.WriteLine("Permissions Report for User: " + userToQuery);
 
                 foreach (var project in projectsJson.value)
                 {
+                    if(!string.IsNullOrEmpty(projectToQuery) && project.name != projectToQuery)
+                    {
+                        continue;
+                    }
+
                     // Extract project ID from the project URL
                     string projectUrl = project.url;
                     string pattern = @"/_apis/projects/([a-f0-9-]+)";
@@ -69,55 +82,73 @@ class Program
                         // Query permissions for the specific user in the project
                         var permissionsResponse = await client.GetAsync($"_apis/securitynamespaces?api-version={adoApiVersion}");
                         permissionsResponse.EnsureSuccessStatusCode();
-                        var securityNamespacesJson = await permissionsResponse.Content.ReadAsStringAsync();
-                        var securityNamespaces = JObject.Parse(securityNamespacesJson);
+                        var securityNamespacesJson = JsonConvert.DeserializeObject<NamespaceResponse>(await permissionsResponse.Content.ReadAsStringAsync());
 
-                        Console.WriteLine($"Project: {project.name}");
-                        Console.WriteLine("Permissions:");
+                        Console.WriteLine($"\nProject: {project.name}");
 
-                        foreach (var namespaceItem in securityNamespaces["value"])
+                        foreach (var namespaceItem in securityNamespacesJson.Value)
                         {
-                            var namespaceDisplayName = namespaceItem["displayName"].ToString();
-                            var namespaceName = namespaceItem["name"].ToString();
-                            //var permissions = GetNamespacePermissions(namespaceItem);
+                            var namespaceDisplayName = namespaceItem.DisplayName;
+                            var namespaceName = namespaceItem.Name;
 
-                            if (namespaceItem["actions"] is JArray actions)
+                            if (!string.IsNullOrEmpty(queryNamespace) && namespaceName != queryNamespace)
                             {
-                                using (var aclClient = new HttpClient())
+                                continue;
+                            }
+
+                            Console.WriteLine($"\nChecking permissions for : {namespaceItem.DisplayName}, project {project.name}");
+                            using (var aclClient = new HttpClient())
+                            {
+                                // Set the authorization header using the Personal Access Token (PAT)
+                                aclClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                                    Convert.ToBase64String(System.Text.ASCIIEncoding.ASCII.GetBytes($":{personalAccessToken}")));
+                                // Set the base URL for Azure DevOps REST API
+                                aclClient.BaseAddress = new Uri($"https://dev.azure.com/{organization}/");
+
+                                // Get a list of projects
+                                var aclResponse = await aclClient.GetAsync($"_apis/accesscontrollists/{namespaceItem.NamespaceId}/?api-version={adoApiVersion}&includeExtendedInfo=true&token={project.id}&descriptors={userJson.Value[0].Descriptor.Replace("\\\\", "\\")}");
+                                aclResponse.EnsureSuccessStatusCode();
+                                var acl = JsonConvert.DeserializeObject<AclResponse>(await aclResponse.Content.ReadAsStringAsync());
+
+                                if (namespaceItem.Actions.Count > 0)
                                 {
-                                    // Set the authorization header using the Personal Access Token (PAT)
-                                    aclClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
-                                        Convert.ToBase64String(System.Text.ASCIIEncoding.ASCII.GetBytes($":{personalAccessToken}")));
-                                    // Set the base URL for Azure DevOps REST API
-                                    aclClient.BaseAddress = new Uri($"https://dev.azure.com/{organization}/");
-
-                                    // Get a list of projects
-                                    var aclResponse = await aclClient.GetAsync($"{{DevOpsOrg}}/_apis/accesscontrollists/{namespaceItem["namespaceId"]}/?api-version={adoApiVersion}&includeExtendedInfo=true&token={project.id}&descriptors={userJson.Value[0].Descriptor}");
-                                    aclResponse.EnsureSuccessStatusCode();
-                                    var acl = JsonConvert.DeserializeObject<AclResponse>(await aclResponse.Content.ReadAsStringAsync());
-
-                                    foreach (var action in actions)
+                                    foreach (var action in namespaceItem.Actions)
                                     {
-                                        var permissionName = action["name"].ToString();
-                                        var permissionBit = (int)action["bit"];
-                                        var permissionStatus = permissionBit > 0 ? "Allowed" : "Denied";
-                                        var permissionDisplayName = action["displayName"].ToString();
+                                        var permissionBit = (int)action.Bit;
+                                        var permissionStatus = "";
+                                        // Extract the first entry in AcesDictionary for easier access and readability
+                                        var firstAce = acl.Value[0].AcesDictionary.FirstOrDefault().Value;
+
+                                        // Check if the permission bit is set in the effective deny permissions
+                                        if ((action.Bit & firstAce.ExtendedInfo.EffectiveDeny) > 0)
+                                        {
+                                            // If the bit is not set in both effective deny and effective allow, it's "Not Set"
+                                            if ((action.Bit & firstAce.ExtendedInfo.EffectiveAllow) >0 )
+                                            {
+                                                permissionStatus = "Not Set";
+                                            }
+                                            else
+                                            {
+                                                permissionStatus = $"Denied";
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // If the bit is not in effective deny, check if it's in allow
+                                            if ((action.Bit & firstAce.ExtendedInfo.EffectiveAllow) > 0)
+                                            {
+                                                permissionStatus = "Allowed";
+                                            }
+                                            else
+                                            {
+                                                permissionStatus = "Not Set";
+                                            }
+                                        }
+
+                                        Console.WriteLine($"Object: {action.DisplayName}, Status: {permissionStatus}");
                                     }
                                 }
                             }
-
-                            //Console.WriteLine($"- Namespace: {namespaceName} {namespaceDisplayName}");
-                            //if (permissions.Count > 0)
-                            //{
-                            //    foreach (var permission in permissions)
-                            //    {
-                            //        Console.WriteLine($"  - Permission: {permission.Name}, { permission.DisplayName}, Status: {permission.Status}");
-                            //    }
-                            //}
-                            //else
-                            //{
-                            //    Console.WriteLine("  - No permissions found.");
-                            //}
                         }
                     }
                 }
@@ -127,26 +158,5 @@ class Program
                 Console.WriteLine($"Error: {ex.Message}");
             }
         }
-    }
-
-    // Classes to deserialize JSON responses
-    class ProjectListResponse
-    {
-        public Project[] value { get; set; }
-    }
-
-    class Project
-    {
-        public string id { get; set; }
-        public string name { get; set; }
-        public string url { get; set; }
-    }
-
-    class PermissionInfo
-    {
-        public string Name { get; set; }
-        public string Status { get; set; }
-
-        public string DisplayName { get; set; }
     }
 }
