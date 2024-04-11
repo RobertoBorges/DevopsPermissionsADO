@@ -18,7 +18,7 @@ class Program
         string userToQuery = ""; // The user email you want to query
         string queryNamespace = ""; //"ReleaseManagement";
         string projectToQuery = ""; //"eShop-Containers";
-        string adoApiVersion = "7.1-preview.1";        
+        string adoApiVersion = "7.1-preview.1";
 
         // Create an instance of HttpClient
         using (var client = new HttpClient())
@@ -36,7 +36,7 @@ class Program
                     userClient.BaseAddress = new Uri($"https://vssps.dev.azure.com/{organization}/");
 
                     //Get information about the user
-                    var userResponse = await userClient.GetAsync($"_apis/Identities?searchFilter=General&api-version=5.0-preview.1&filterValue={userToQuery}");
+                    var userResponse = await userClient.GetAsync($"_apis/Identities?searchFilter=General&filterValue={userToQuery}&queryMembership=None&api-version={adoApiVersion}");
                     if (!userResponse.IsSuccessStatusCode)
                     {
                         Console.WriteLine("User not found");
